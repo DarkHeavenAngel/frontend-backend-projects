@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управління книгами</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    
+    <div id="app" class="container mt-5 mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+
+            <div v-if="!isAdmin" class="d-flex gap-2">
+                <input type="text" class="form-control form-control-sm" placeholder="Логін" v-model="loginData.username">
+                <input type="password" class="form-control form-control-sm" placeholder="Пароль" v-model="loginData.password">
+                <button class="btn btn-sm btn-primary" @click="login">Увійти</button>
+            </div>
+            
+            <div v-else class="d-flex align-items-center gap-3">
+                <button class="btn btn-sm btn-outline-danger" @click="logout">Вийти</button>
+            </div>
+        </div>
+
+        <div v-if="authError" class="alert alert-danger py-2">{{ authError }}</div>
+        
+        <!-- додавання -->
+        <div v-if="isAdmin" class="card shadow-sm p-4 mb-4 border-success">
+            <h4 class="mb-3 text-success">Додати книгу</h4>
+            <form @submit.prevent="addBook">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" placeholder="Автор" v-model="newBook.author" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" placeholder="Назва" v-model="newBook.title" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" placeholder="Жанр" v-model="newBook.genre" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" class="form-control" placeholder="Рік" v-model="newBook.year" required>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-success w-100">Додати</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- статистика -->
+        <div class="card shadow-sm p-4 mb-4">
+            <h4 class="mb-3">Статистика автора</h4>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" placeholder="Введіть ім'я автора..." v-model="searchAuthor">
+                <button class="btn btn-outline-info" @click="fetchAuthorStats">Показати статистику</button>
+            </div>
+            
+            <div v-if="authorStats" class="alert alert-info mb-0">
+                <h5 class="alert-heading">Автор: {{ authorStats.author }}</h5>
+                <p class="mb-1"><strong>Кількість знайдених книг:</strong> {{ authorStats.totalBooks }}</p>
+                <ul class="mb-0" v-if="authorStats.totalBooks > 0">
+                    <li v-for="b in authorStats.books" :key="b._id">
+                        {{ b.title }} ({{ b.year }})
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- таблиця та фільтр -->
+        <div class="card shadow-sm p-4">
+            
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="m-0">Список книг</h4>
+                <div class="input-group w-50">
+                    <input type="text" class="form-control" placeholder="Введіть ID книги..." v-model="searchId" @input="fetchBookById">
+                    <button class="btn btn-outline-secondary" @click="fetchAllBooks">Усі книги</button>
+                </div>
+            </div>
+
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 15%">ID</th>
+                        <th style="width: 20%">Автор</th>
+                        <th style="width: 20%">Назва</th>
+                        <th style="width: 15%">Жанр</th>
+                        <th style="width: 10%">Рік</th>
+                        <th style="width: 20%" v-if="isAdmin">Дії</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="book in books" :key="book._id">
+
+                        <template v-if="editingId !== book._id">
+                            <td class="align-middle"><small class="text-muted">{{ book._id }}</small></td>
+                            <td class="align-middle">{{ book.author }}</td>
+                            <td class="align-middle">{{ book.title }}</td>
+                            <td class="align-middle">{{ book.genre }}</td>
+                            <td class="align-middle">{{ book.year }}</td>
+                            
+                            <td v-if="isAdmin">
+                                <button class="btn btn-sm btn-outline-primary me-2" @click="startEdit(book)">Редагувати</button>
+                                <button class="btn btn-sm btn-danger" @click="deleteBook(book._id)">Видалити</button>
+                            </td>
+                        </template>
+
+                        <template v-else>
+                            <td class="align-middle"><small class="text-muted">{{ book._id }}</small></td>
+                            <td><input type="text" class="form-control form-control-sm" v-model="editData.author"></td>
+                            <td><input type="text" class="form-control form-control-sm" v-model="editData.title"></td>
+                            <td><input type="text" class="form-control form-control-sm" v-model="editData.genre"></td>
+                            <td><input type="number" class="form-control form-control-sm" v-model="editData.year"></td>
+                            <td>
+                                <button class="btn btn-sm btn-success me-2" @click="saveEdit()">Зберегти</button>
+                                <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Скасувати</button>
+                            </td>
+                        </template>
+
+                    </tr>
+                </tbody>
+            </table>
+            
+            <p v-if="books.length === 0" class="text-center text-muted">Книг не знайдено</p>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
